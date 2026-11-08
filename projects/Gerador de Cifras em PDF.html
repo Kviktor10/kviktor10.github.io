@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gerador de Cifras em PDF</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#f7f5f0; --panel:#ffffff; --ink:#1f2420; --muted:#6b7268;
+  --line:#dcd8cc; --accent:#2f6f5e; --accent-ink:#ffffff; --chord:#b5542a;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15181a; --panel:#1d2124; --ink:#e8e6df; --muted:#9aa29a;
+    --line:#32383a; --accent:#5fae98; --accent-ink:#0c1210; --chord:#e2884f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15181a; --panel:#1d2124; --ink:#e8e6df; --muted:#9aa29a;
+  --line:#32383a; --accent:#5fae98; --accent-ink:#0c1210; --chord:#e2884f;
+  color-scheme: dark;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px;}
+h1{font-size:1.4rem;font-weight:700;margin:0 0 4px;}
+.sub{color:var(--muted);font-size:.9rem;margin:0 0 20px;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+@media (max-width:860px){.grid{grid-template-columns:1fr;}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;}
+.field{margin-bottom:12px;}
+label{display:block;font-size:.78rem;color:var(--muted);margin-bottom:4px;}
+input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;
+  background:transparent;color:var(--ink);font-size:.92rem;}
+.row3{display:grid;grid-template-columns:2fr 2fr 1.2fr;gap:10px;}
+.row2{display:grid;grid-template-columns:2fr 1fr;gap:10px;}
+textarea{width:100%;min-height:360px;padding:10px;border:1px solid var(--line);border-radius:6px;
+  background:transparent;color:var(--ink);font-family:ui-monospace,SFMono-Regular,Consolas,"Courier New",monospace;
+  font-size:.85rem;line-height:1.5;resize:vertical;}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center;}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  padding:8px 12px;border-radius:6px;font-size:.85rem;}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600;}
+button:hover{filter:brightness(0.97);}
+.hint{font-size:.76rem;color:var(--muted);margin-top:6px;}
+.preview-head{text-align:center;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line);}
+.preview-head h2{margin:0 0 6px;font-size:1.15rem;}
+.preview-meta{font-size:.82rem;color:var(--muted);line-height:1.5;}
+pre.sheet{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,"Courier New",monospace;
+  font-size:.83rem;line-height:1.55;margin:0;overflow-x:auto;}
+.sec{color:var(--accent);font-weight:700;}
+.chordline{color:var(--chord);font-weight:700;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Gerador de Cifras em PDF</h1>
+  <p class="sub">Digite os dados da música e cole a letra com os acordes acima das sílabas. A pré-visualização e o PDF são atualizados automaticamente.</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="row3 field">
+        <div><label>Título da música</label><input id="titulo" type="text" value="Nome da Música"></div>
+        <div><label>Compositor</label><input id="compositor" type="text" value="Nome do Compositor"></div>
+        <div><label>Letrista</label><input id="letrista" type="text" value="Nome do Letrista"></div>
+      </div>
+      <div class="row2 field">
+        <div><label>Tom (ex: G, Am, D, F#m)</label><input id="tom" type="text" value="G"></div>
+        <div>
+          <label>Transpor</label>
+          <div style="display:flex;gap:6px;">
+            <button id="downBtn" title="Baixar meio tom">−1</button>
+            <button id="upBtn" title="Subir meio tom">+1</button>
+          </div>
+        </div>
+      </div>
+
+      <label>Letra com cifras</label>
+      <textarea id="letra" spellcheck="false">[Verse 1]
+G                 D
+Parabéns pra você
+G                 E
+nessa data querida
+
+[Chorus]
+C              G
+Muitas felicidades
+Em             D
+Muitos anos de vida</textarea>
+      <div class="hint">Use linhas de acorde (ex: "G  D") logo acima da linha de letra correspondente, e marque seções entre colchetes, ex: [Verse], [Chorus], [Bridge].</div>
+      <div class="actions">
+        <button id="pdfBtn" class="primary">Gerar PDF</button>
+        <button id="clearBtn">Limpar tudo</button>
+        <span class="hint" id="saveStatus" style="margin-left:auto;"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="preview-head">
+        <h2 id="pvTitulo">Nome da Música</h2>
+        <div class="preview-meta">
+          Compositor: <span id="pvCompositor"></span> · Letrista: <span id="pvLetrista"></span><br>
+          Tom: <span id="pvTom"></span>
+        </div>
+      </div>
+      <pre class="sheet" id="pvSheet"></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+const NOTES_SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const NOTES_FLAT =['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const NOTE_TO_PC={};
+NOTES_SHARP.forEach((n,i)=>NOTE_TO_PC[n]=i);
+NOTES_FLAT.forEach((n,i)=>NOTE_TO_PC[n]=i);
+
+const QUAL = "maj9|maj7|maj|m7b5|m9|m7|m6|minmaj7|min7|minor|min|m|dim7|dim|aug|sus2|sus4|sus|add9|add11|add2|6/9|6|7|9|11|13";
+const CHORD_RE = new RegExp("^([A-G](?:#|b)?)(" + QUAL + ")?((?:/[A-G](?:#|b)?)?)$");
+const TOKEN_RE = /^[A-G](#|b)?[A-Za-z0-9#/]*$/;
+
+function isChordLine(line){
+  const t = line.trim();
+  if(!t) return false;
+  const tokens = t.split(/\s+/);
+  return tokens.every(tok => CHORD_RE.test(tok));
+}
+
+function transposeNote(note, interval, useFlats){
+  const pc = NOTE_TO_PC[note];
+  if(pc===undefined) return note;
+  const idx = ((pc + interval) % 12 + 12) % 12;
+  return useFlats ? NOTES_FLAT[idx] : NOTES_SHARP[idx];
+}
+
+function transposeChordToken(tok, interval, useFlats){
+  const m = tok.match(CHORD_RE);
+  if(!m) return tok;
+  const root = transposeNote(m[1], interval, useFlats);
+  const qual = m[2] || "";
+  let bass = m[3] || "";
+  if(bass){
+    const bassNote = bass.slice(1);
+    bass = "/" + transposeNote(bassNote, interval, useFlats);
+  }
+  return root + qual + bass;
+}
+
+function transposeChordLine(line, interval, useFlats){
+  // preserve leading whitespace blocks between tokens
+  return line.replace(/\S+/g, tok => transposeChordToken(tok, interval, useFlats));
+}
+
+function transposeText(text, interval, useFlats){
+  return text.split("\n").map(line => isChordLine(line) ? transposeChordLine(line, interval, useFlats) : line).join("\n");
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function renderPreview(){
+  const titulo = document.getElementById('titulo').value || "—";
+  const compositor = document.getElementById('compositor').value || "—";
+  const letrista = document.getElementById('letrista').value || "—";
+  const tom = document.getElementById('tom').value || "—";
+  const letra = document.getElementById('letra').value;
+
+  document.getElementById('pvTitulo').textContent = titulo;
+  document.getElementById('pvCompositor').textContent = compositor;
+  document.getElementById('pvLetrista').textContent = letrista;
+  document.getElementById('pvTom').textContent = tom;
+
+  const lines = letra.split("\n").map(line=>{
+    const trimmed = line.trim();
+    if(/^\[.*\]$/.test(trimmed)){
+      return '<span class="sec">' + escapeHtml(line) + '</span>';
+    }
+    if(isChordLine(line)){
+      return '<span class="chordline">' + escapeHtml(line) + '</span>';
+    }
+    return escapeHtml(line);
+  });
+  document.getElementById('pvSheet').innerHTML = lines.join("\n");
+}
+
+function doTranspose(interval){
+  const useFlats = interval < 0; // heuristic: descer meio tom tende a soar melhor em bemol
+  const letraEl = document.getElementById('letra');
+  const tomEl = document.getElementById('tom');
+  letraEl.value = transposeText(letraEl.value, interval, useFlats);
+  tomEl.value = transposeText(tomEl.value, interval, useFlats);
+  renderPreview();
+}
+
+document.getElementById('upBtn').addEventListener('click', ()=>doTranspose(1));
+document.getElementById('downBtn').addEventListener('click', ()=>doTranspose(-1));
+const STORAGE_KEY = 'cifra-pdf-draft-v1';
+const FIELD_IDS = ['titulo','compositor','letrista','tom','letra'];
+
+function saveState(){
+  try{
+    const data = {};
+    FIELD_IDS.forEach(id => data[id] = document.getElementById(id).value);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    const status = document.getElementById('saveStatus');
+    if(status){ status.textContent = 'Salvo automaticamente'; }
+  }catch(err){
+    // localStorage indisponível; segue sem salvar
+  }
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    const data = JSON.parse(raw);
+    FIELD_IDS.forEach(id=>{
+      if(data[id] !== undefined){ document.getElementById(id).value = data[id]; }
+    });
+  }catch(err){
+    // nada salvo ou dado corrompido; ignora
+  }
+}
+
+function clearState(){
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(err){}
+  document.getElementById('titulo').value = '';
+  document.getElementById('compositor').value = '';
+  document.getElementById('letrista').value = '';
+  document.getElementById('tom').value = '';
+  document.getElementById('letra').value = '';
+  renderPreview();
+  const status = document.getElementById('saveStatus');
+  if(status){ status.textContent = 'Limpo'; }
+}
+
+FIELD_IDS.forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=>{ renderPreview(); saveState(); });
+});
+document.getElementById('clearBtn').addEventListener('click', clearState);
+
+document.getElementById('pdfBtn').addEventListener('click', ()=>{
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:"pt", format:"a4"});
+    const margin = 50;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let y = margin;
+
+    const titulo = document.getElementById('titulo').value || "Sem título";
+    const compositor = document.getElementById('compositor').value || "—";
+    const letrista = document.getElementById('letrista').value || "—";
+    const tom = document.getElementById('tom').value || "—";
+    const letra = document.getElementById('letra').value;
+
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(16);
+    doc.text(titulo, pageWidth/2, y, {align:"center"});
+    y += 22;
+
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(10);
+    doc.text("Compositor: " + compositor + "    Letrista: " + letrista, pageWidth/2, y, {align:"center"});
+    y += 14;
+    doc.text("Tom: " + tom, pageWidth/2, y, {align:"center"});
+    y += 20;
+
+    doc.setDrawColor(200);
+    doc.line(margin, y, pageWidth-margin, y);
+    y += 20;
+
+    const lineHeight = 13;
+    const lines = letra.split("\n");
+    doc.setFontSize(10.5);
+
+    lines.forEach(line=>{
+      if(y > pageHeight - margin){
+        doc.addPage();
+        y = margin;
+      }
+      const trimmed = line.trim();
+      if(/^\[.*\]$/.test(trimmed)){
+        doc.setFont("courier","bold");
+        doc.setTextColor(47,111,94);
+      } else if(isChordLine(line)){
+        doc.setFont("courier","bold");
+        doc.setTextColor(181,84,42);
+      } else {
+        doc.setFont("courier","normal");
+        doc.setTextColor(20,20,20);
+      }
+      doc.text(line.length ? line : " ", margin, y);
+      y += lineHeight;
+    });
+
+    const safeName = (titulo || "cifra").replace(/[^a-z0-9áéíóúâêôãõç \-]/gi,"").trim().replace(/\s+/g,"_") || "cifra";
+    doc.save(safeName + ".pdf");
+  }catch(err){
+    alert("Não foi possível gerar o PDF: " + err.message);
+  }
+});
+
+loadState();
+renderPreview();
+</script>
+</body>
+</html>
